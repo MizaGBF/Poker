@@ -1,0 +1,30 @@
+* rev.5
+- ported to python 3
+- old setting file isn't compatible (new one use the JSON format)
+
+* rev.4
+- fixed some click issues because of the removal of lite mode
+
+* rev.3
+- bugfixes
+- added a config file "settings.cfg"
+- a sound effect will now play when encountering a capcha
+- README updated
+- tweaked the card detection for the deal game (mismatch may still happen but it should read the table properly now)
+- holdCard() function should now be more accurate
+- minor changes
+
+* rev.2
+- fixed the script entering the wrong state after stopping a double up game on its own
+- decreased some delays to speed up the script
+- fixed the win multipliers being incorrect
+- minor changes
+
+* rev.1
+- fixed the Joker card not being selected in certain cases
+- fixed a division by zero error
+- slight performance improvement
+- the bot will now stop the double up game if the reward reached x128 (unless the probability to win is high enough)
+
+* rev.0
+- initial release
