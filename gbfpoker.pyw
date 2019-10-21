@@ -39,14 +39,15 @@ class Pokerbot(tk.Tk):
         scrollbar.pack(side=tk.LEFT, fill=tk.Y)
         scrollbar.config(command=self.logtext.yview)
 
-        self.title('(You) Pokerbot rev.5')
+        self.title('(You) Pokerbot rev.6')
         self.resizable(width=False, height=False)
         self.protocol("WM_DELETE_WINDOW", self.close)
 
+        # START
         self.load()
         self.run()
 
-    def load(self): # same thing but for save.json
+    def load(self):
         try:
             with open('settings.json') as f:
                 data = json.load(f)
@@ -66,7 +67,7 @@ class Pokerbot(tk.Tk):
 
     def alert(self):
         try: winsound.PlaySound(self.settings['sound_file'], winsound.SND_FILENAME | winsound.SND_ASYNC)
-        except: os.system('beep -f %s -l %s' % (200,100))
+        except: os.system('beep -f %s -l %s' % (200,100)) # if not windows OR failed to load the sound file
 
     def close(self): # called by the app when closed
         self.appRunning = False
@@ -81,7 +82,7 @@ class Pokerbot(tk.Tk):
         while self.appRunning:
             self.update_log()
             self.update()
-            time.sleep(0.01)
+            time.sleep(0.04)
             self.escape()
 
     def update_log(self):
@@ -101,12 +102,12 @@ class Pokerbot(tk.Tk):
             del self.logStrings[:] # delete the stored lines
         self.logMutex.release()
 
-    def log(self, text, timestamp=True):
+    def log(self, text, timestamp=True): # add the text to the queue, to be printed in the windows
         if not self.appRunning or text == self.lastLog:
             return
         self.lastLog = text
         self.logMutex.acquire()
-        if timestamp: # append to our list of line (see updateGui() for more)
+        if timestamp: # append to our list of line (see update_log() for more)
             self.logStrings.append("[" + strftime("%H:%M:%S") + "] " + text)
         else:
             self.logStrings.append(text)
@@ -126,9 +127,9 @@ class Pokerbot(tk.Tk):
         else: self.log('Resume')
 
     # https://pyautogui.readthedocs.io/en/latest/cheatsheet.html#mouse-functions
-    def resetMouse(self):
-        pyautogui.moveTo(1, 1)
-        self.delay(150)
+    def resetMouse(self): # to move the mouse out of the pokker buttons (they blink if you hover over them)
+        pyautogui.moveTo(random.randint(self.chrome[0], self.chrome[0]+20), random.randint(self.chrome[1], self.chrome[1]+20))
+        self.delay(30)
 
     def click(self, x, y, n=1):
         pyautogui.click(x=x, y=y, clicks=n)
@@ -295,11 +296,11 @@ class Pokerbot(tk.Tk):
     # read the card on the poker table (DOUBLE UP GAME)
     def readTableDoubleUp(self, array):
         self.log("Reading the Poker table...")
-        screen = self.getScreenPoker()
+        screen = self.getScreen(True)
         result = []
         for i in range(0, len(array)):
             for j in range(0, len(array[i])):
-                elem = self.searchImagePoker(array[i][j], screen, 0.80)
+                elem = self.searchCardImage(array[i][j], screen, 0.80)
                 if elem[0] != -1:
                     dontAppend = False
                     for k in range(0, len(result)):
@@ -329,7 +330,7 @@ class Pokerbot(tk.Tk):
                     total += 1
         total = total * 1.0
         for i in range(0, 3):
-            count[i] = count[i] / total
+            count[i] = 100 * count[i] / total
         return count
 
     # click on the card to hold it
@@ -338,7 +339,7 @@ class Pokerbot(tk.Tk):
         looping = True
         while looping:
             self.randomClick(card[2])
-            if self.waitImageRegion("keep.png", [card[2][0]+5, card[2][1]+5, card[2][2]-10, card[2][3]-10], 10, 0.85)[0] != -1:
+            if self.waitImageRegion("keep.png", [card[2][0]+10, card[2][1]+10, card[2][2]-30, card[2][3]-30], 10, 0.85)[0] != -1:
                 looping = False
 
     # deal game:
@@ -423,16 +424,13 @@ class Pokerbot(tk.Tk):
                         if i[0] == j:
                             self.holdCard(i)
 
-    def getScreenPoker(self):
-        screen = ig.grab(bbox=[self.pokerPos[0],self.pokerPos[1],self.pokerPos[2],self.pokerPos[3]]) # get the screen
+    def getScreen(self, pokerMode = False):
+        if pokerMode: screen = ig.grab(bbox=[self.pokerPos[0],self.pokerPos[1],self.pokerPos[2],self.pokerPos[3]]) # for the poker table
+        else: screen = ig.grab(bbox=[self.chrome[0],self.chrome[1],self.chrome[0]+self.chrome[2],self.chrome[1]+self.chrome[3]]) # get the chrome screenshot
         screen = np.array(screen, dtype='uint8').reshape((screen.size[1],screen.size[0],3)) # convert for opencv
         return cv2.cvtColor(screen, cv2.COLOR_BGR2GRAY)
 
-    def getScreen(self):
-        screen = ig.grab(bbox=[self.chrome[0],self.chrome[1],self.chrome[0]+self.chrome[2],self.chrome[1]+self.chrome[3]]) # get the screen
-        return np.array(screen, dtype='uint8').reshape((screen.size[1],screen.size[0],3)) # convert for opencv
-
-    def searchImagePoker(self, template, screen, threshold=0.85):
+    def searchCardImage(self, template, screen, threshold=0.85):
         if template is None or screen is None:
             return [-1]
         
@@ -450,7 +448,6 @@ class Pokerbot(tk.Tk):
             return [[-1]]
 
         img = self.getScreen() # get the screen
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) # convert for opencv
         
         w, h = template.shape[::-1] # get the size
         res = cv2.matchTemplate(img,template,eval('cv2.TM_CCOEFF_NORMED')) # template matching
@@ -523,12 +520,12 @@ class Pokerbot(tk.Tk):
         return False
 
     def checkForChrome(self):
-        hwnd = win32gui.GetForegroundWindow()
-        if win32gui.GetWindowText(hwnd).find("- Google Chrome") != -1:
+        hwnd = win32gui.GetForegroundWindow() # get the focused window
+        if win32gui.GetWindowText(hwnd).find("- Google Chrome") != -1: # check if google chrome
             if self.chrome == None:
-                size = win32gui.GetWindowRect(hwnd)
-                self.chrome = [size[0], size[1], size[2]-size[0], size[3]-size[1]]
                 self.log("Chrome detected")
+            size = win32gui.GetWindowRect(hwnd) # update the size
+            self.chrome = [size[0], size[1], size[2]-size[0], size[3]-size[1]]
             return True
         else:
             if self.chrome != None:
@@ -551,22 +548,22 @@ class Pokerbot(tk.Tk):
     # read the cards on the poker table (DEAL GAME)
     def readTable(self, array):
         self.log("Reading the Poker table...")
-        screen = self.getScreenPoker()
+        screen = self.getScreen(True)
         result = []
         ignored = []
         for i in range(0, len(array)):
             for j in range(0, len(array[i])):
-                elem = self.searchImagePoker(array[i][j], screen, 0.80)
-                if elem[0] != -1:
+                elem = self.searchCardImage(array[i][j], screen, 0.80) # search if the card is on screen
+                if elem[0] != -1: # if it is
                     dontAppend = False
-                    for k in range(0, len(result)):
+                    for k in range(0, len(result)): # compare with existing result
                         if self.areClose(result[k][2][0], elem[0], 1) and self.areClose(result[k][2][1], elem[1], 1):
                             dontAppend = True
                             if elem[4] > result[k][2][4]:
                                 ignored.append(result[k])
                                 result[k] = [i, j, elem]
                             break
-                    if not dontAppend:
+                    if not dontAppend: # and decide to keep the match or not
                         result.append([i, j, elem])
                     else:
                         ignored.append([i, j, elem])
@@ -602,7 +599,7 @@ class Pokerbot(tk.Tk):
                 temp.append(self.resizeImage(array2[i][j], x, y))
             array1.append(temp)
 
-    # load the card image files
+    # load the card image files in memory
     def loadCards(self, cards):
         buffer = self.loadImage("00x.png") # joker
         if buffer is None:
@@ -622,12 +619,13 @@ class Pokerbot(tk.Tk):
             cards.append(array)
         return True
 
-    def bot_loop(self):
-        state = -1
-        lastState = 0
+    def bot_loop(self): # main loop
+        state = -1 # state machine
+        lastState = 0 # previous state
         cards = []
         resizedCards = []
         doubleupCards = []
+        gain = 0
         if not self.loadCards(cards):
             self.log("Failed to load cards")
             return
@@ -646,7 +644,7 @@ class Pokerbot(tk.Tk):
         self.log("F7 to toggle the Pause, Escape to stop")
         self.log("_______________________________________________________", False)
         while self.appRunning:
-            self.delay(200)
+            self.delay(100)
             if time.time() - startTime > self.settings['time_limit']:
                 self.log("Time limit reached")
                 return
@@ -671,7 +669,6 @@ class Pokerbot(tk.Tk):
                             self.printCards(test) # print the cards
                             score = self.checkHand(test) # get the result
                             self.printHand(score) # and print it
-                            self.delay(10000)
                             if len(self.readTable(resizedCards)) == 5:
                                 state = 1
                             elif len(self.readTable(doubleupCards)) > 0:
@@ -689,16 +686,19 @@ class Pokerbot(tk.Tk):
                             state = lastState
                             continue
                     elif state == 0: # starting state (deal game)
+                        self.resetMouse()
                         self.log("_______________________________________________________", False)
                         self.log("Deal screen")
-                        self.resetMouse()
                         if self.clickImage("deal_en.png"): # click the deal button
-                            self.waitImage("ok_en.png", 30)
-                        if self.findImage("ok_en.png"): # if the ok button is visible on screen
+                            self.resetMouse()
+                            self.delay(100)
+                        if self.waitImage("ok_en.png", 30)[0] != -1: # if the ok button is visible on screen
                             # initialize the stuff
+                            gain -= 1
                             errorCount = 0
                             win = -1
                             currentCards = []
+                            self.log("Current gain: {}".format(gain))
                             # read the table (10 try max)
                             while errorCount < 10:
                                 currentCards = self.readTable(resizedCards)
@@ -707,13 +707,14 @@ class Pokerbot(tk.Tk):
                                 else:
                                     break
                             if errorCount < 10:
+                                self.resetMouse()
                                 self.printCards(currentCards) # print the cards
                                 score = self.checkHand(currentCards) # get the result
                                 self.printHand(score) # and print it
                                 self.handAction(currentCards, score) # choose which card to keep
                                 previousHand = currentCards # store our current card (to keep track later)
-                                self.resetMouse()
                                 self.clickImage("ok_en.png") # click ok
+                                self.resetMouse()
                                 if self.waitImageList(["yes_en.png", "no_en.png", "deal_en.png"], 40): # and wait for the cards
                                     state = 1
                                 continue
@@ -733,6 +734,16 @@ class Pokerbot(tk.Tk):
                             else:
                                 break
                         if errorCount < 10:
+                            self.resetMouse()
+                            clicked = False
+                            # click preemptively
+                            if self.clickImage("yes_en.png"):
+                                state = 2
+                                clicked = True
+                            elif self.clickImage("deal_en.png"):
+                                state = 0
+                                clicked = True
+                            # check result
                             self.printCards(currentCards)
                             score = self.checkHand(currentCards)
                             self.printHand(score)
@@ -748,13 +759,11 @@ class Pokerbot(tk.Tk):
                                     array.append(i)
                             previousHand += array
                             waiting = True
-                            self.resetMouse()
-                            while waiting:
+                            while waiting and not clicked:
                                 if self.findImage("yes_en.png") and self.findImage("no_en.png"): # we won
                                     state = 2
                                     waiting = False
                                     self.clickImage("yes_en.png") # I need to update this part
-                                    self.randomDelay(800, 1200)
                                 elif self.findImage("deal_en.png"): # we lost
                                     state = 0
                                     waiting = False
@@ -772,6 +781,8 @@ class Pokerbot(tk.Tk):
                     elif state == 3: # double up game
                         self.log("_______________________________________________________", False)
                         self.log("Double Up screen")
+                        self.resetMouse()
+                        self.waitImageList(["high_en.png", "low_en.png"], 40)
                         if self.findImage("high_en.png") and self.findImage("low_en.png"): # if high and low buttons on screen
                             if win < 1: # if the win value is lesser than 1, we didn't come here the right way
                                 win = 1
@@ -786,7 +797,7 @@ class Pokerbot(tk.Tk):
                             if errorCount < 10:
                                 deck = self.updateDeck(deck, currentCards) # update the table
                                 proba = self.nextCardProba(deck, currentCards[0]) # get the probability
-                                self.log("Low: " + str(proba[0])[:4] + ", Draw: " + str(proba[1])[:4] + ", High: " + str(proba[2])[:4])
+                                self.log("{:.1f}% Low, {:.1f}% Draw, {:.1f}% High".format(proba[0], proba[1], proba[2]))
                                 button = ""
                                 if proba[0] > proba[2]: # if the "low" probability is higher than the "high" probability
                                     button = "low_en.png" # we click the low button
@@ -796,12 +807,12 @@ class Pokerbot(tk.Tk):
                                     button = "high_en.png" # else the high button
                                     choice = True
                                     self.log("I choose High")
-                                self.resetMouse()
                                 self.clickImage(button) # click
-                                self.randomDelay(800, 1200)
+                                self.resetMouse()
                                 previousHand = currentCards # store the card
                                 doubleupChain += 1
                                 state = 4
+                                self.waitImageList(["yes_en.png", "no_en.png", "deal_en.png"], 40)
                                 continue
                             else:
                                 self.smartlog("Error: Can't read the table, resetting...", 3)
@@ -834,27 +845,33 @@ class Pokerbot(tk.Tk):
                                     result = array[0][0] > previousHand[0][0]
                                     draw = False
                                 if choice == result: # if we won 
-                                    self.log("Chain: " + str(doubleupChain))
+                                    self.log("Chain: {}".format(doubleupChain))
                                     if(doubleupChain >= 10): # chain reached 10, back to the start
                                         state = 1
                                         continue
                                     futureDeck = deck
                                     deck = self.updateDeck(futureDeck, array) # update the deck
                                     proba = self.nextCardProba(futureDeck, array[0]) # get the probability for the next round
-                                    if not draw: # if we didn't get a draw, double the win
-                                        win = win * 2
-                                        self.log("Current multiplier is x" + str(win))
-                                    self.log("Low: " + str(proba[0])[:4] + ", Draw: " + str(proba[1])[:4] + ", High: " + str(proba[2])[:4])
                                     button = ""
-                                    if win < 128 or proba[0] > 0.9 or proba[2] > 0.9: # decide if we continue or not
+                                    self.resetMouse()
+                                    if win <= 128 or proba[0] > 90 or proba[2] > 90: # decide if we continue or not
                                         button = "yes_en.png"
                                         state = 3
                                     else:
                                         button = "no_en.png"
                                         state = 0
-                                    self.resetMouse()
                                     self.clickImage(button) # and press the button
-                                    self.randomDelay(800, 1200)
+                                    self.resetMouse()
+                                    # update the log while waiting
+                                    if not draw: # if we didn't get a draw, double the win
+                                        win = win * 2
+                                        self.log("Current multiplier is x{}".format(win))
+                                        if state == 0:
+                                            gain += win
+                                            win = 0
+                                    self.log("{:.1f}% Low, {:.1f}% Draw, {:.1f}% High".format(proba[0], proba[1], proba[2]))
+                                    # wait button
+                                    self.waitImageList(["yes_en.png", "no_en.png", "deal_en.png"], 40)
                                     continue
                         elif self.findImage("deal_en.png"): # deal button on screen, it's over
                             self.log("_______________________________________________________", False)
