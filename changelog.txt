@@ -1,3 +1,6 @@
+* rev.8
+- fixed royal straight flush
+
 * rev.7
 - bug fixes
 - more speed optimizations

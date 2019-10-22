@@ -39,7 +39,7 @@ class Pokerbot(tk.Tk):
         scrollbar.pack(side=tk.LEFT, fill=tk.Y)
         scrollbar.config(command=self.logtext.yview)
 
-        self.title('(You) Pokerbot rev.7')
+        self.title('(You) Pokerbot rev.8')
         self.resizable(width=False, height=False)
         self.protocol("WM_DELETE_WINDOW", self.close)
 
@@ -206,10 +206,17 @@ class Pokerbot(tk.Tk):
                 values.append(cards[i][0])
             values = sorted(values)
             if values[0] >= 10:
+                suit = cards[0][1]
+                royal = True
+                for i in range(1, 5):
+                    if suit != cards[i][1]:
+                        royal = False
+                        break
                 # royal straight flush
-                return 10
+                if royal:
+                    return 10
             if values == range(min(values), max(values)+1):
-                # straightflush
+                # straight flush
                 return 8
             # flush
             return 5
