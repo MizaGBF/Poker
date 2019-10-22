@@ -1,3 +1,7 @@
+* rev.7
+- bug fixes
+- more speed optimizations
+
 * rev.6
 - improved speed overall (lot of small optimizations and changes)
 - mouse now goes over chrome top left corner to avoid hovering over buttons
