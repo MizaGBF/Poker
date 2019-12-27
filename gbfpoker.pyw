@@ -527,7 +527,8 @@ class Pokerbot(tk.Tk):
 
     def checkForChrome(self):
         hwnd = win32gui.GetForegroundWindow() # get the focused window
-        if win32gui.GetWindowText(hwnd).find("- Google Chrome") != -1: # check if google chrome
+        win = win32gui.GetWindowText(hwnd)
+        if win.find(" – Google Chrome") != -1 or win.find(" – Chromium") != -1: # check if google chrome
             if self.chrome == None:
                 self.log("Chrome detected")
             size = win32gui.GetWindowRect(hwnd) # update the size
